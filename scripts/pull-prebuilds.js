@@ -4,6 +4,10 @@
 // the latest successful "build-shells" run through the gh CLI (which handles
 // auth and unzipping). The repo is inferred from the current git remote.
 //
+// Runs automatically from npm/package.json's prepublishOnly, so a publish can
+// never ship stale or partial templates. Also runnable by hand (`npm run pull`)
+// to stage without publishing.
+//
 // Options:
 //   --run=<id>   pull a specific run instead of the latest successful one
 const { spawnSync } = require("child_process");
@@ -92,4 +96,4 @@ if (missing.length) {
         "  Publishing now would ship a package that cannot build one of the platforms.",
     );
 }
-console.log(`[pull] all ${staged} template files staged. Next: node scripts/make-manifest.js`);
+console.log(`[pull] all ${staged} template files staged.`);

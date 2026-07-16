@@ -6,7 +6,8 @@
 // becomes res/mipmap-mdpi-v4/), so a hand-written path would name an entry the
 // APK does not contain, and Studio rejects an icon slot it cannot find.
 //
-// Run after scripts/pull-prebuilds.js has staged npm/android and npm/ios.
+// Runs after pull-prebuilds.js, both driven by npm/package.json's
+// prepublishOnly. Also runnable by hand (`npm run manifest`).
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
@@ -140,4 +141,3 @@ console.log(`[manifest]   ios appDirName: ${appDirName}, iconSlots: ${iosIconSlo
 for (const slot of iosIconSlots) {
     console.log(`[manifest]     ${slot}`);
 }
-console.log("[manifest] Next: cd npm && npm publish --access public");

@@ -67,17 +67,27 @@ xcodebuild -project ios/Shell.xcodeproj -target Shell \
 
 ## Releasing
 
-The templates are published as data; there is no compile step at publish time.
-
 ```sh
-node scripts/pull-prebuilds.js   # gh CLI: fetch the latest green build's artifacts
-node scripts/make-manifest.js    # enumerate icon slots from the real templates
 cd npm && npm publish --access public
 ```
+
+That is the whole thing. `npm/`'s `prepublishOnly` fetches the latest green
+build's artifacts (via the `gh` CLI) and regenerates `manifest.json` from them
+before the tarball is packed, so a publish cannot ship stale, partial or
+hand-edited templates — and it fails closed if the artifacts are not there. The
+templates are data; nothing is compiled at publish time.
 
 `make-manifest.js` derives `manifest.json` from the built artifacts rather than
 from constants, because the Android build renames resource directories — a
 hand-written path would point at an entry that does not exist.
+
+The staged files (`npm/android`, `npm/ios`, `npm/manifest.json`) are generated,
+and git-ignored for that reason. To stage them without publishing —
+to inspect a template, or to run Studio against one:
+
+```sh
+npm run stage    # pull + manifest, no publish
+```
 
 Studio pins this package exactly and consumes it as a development dependency;
 the templates reach a released Studio through its packaged resources.

@@ -6,6 +6,6 @@
   "scripts": {
     "pull": "node scripts/pull-prebuilds.js",
     "manifest": "node scripts/make-manifest.js",
-    "release": "node scripts/pull-prebuilds.js && node scripts/make-manifest.js"
+    "stage": "node scripts/pull-prebuilds.js && node scripts/make-manifest.js"
   }
 }
