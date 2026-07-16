@@ -35,6 +35,13 @@ android {
         }
     }
 
+    buildFeatures {
+        // AGP 8 stopped generating BuildConfig by default; the shell reads
+        // BuildConfig.DEBUG to decide whether web-view inspection is allowed,
+        // which is the one thing that must differ between the two variants.
+        buildConfig = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
