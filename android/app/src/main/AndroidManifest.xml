@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The template manifest. Every identity value here is a placeholder the
+  repacker rewrites in the built APK's binary manifest.
+
+  Two shapes are load-bearing and must not be "cleaned up":
+    * android:label is a LITERAL string, not an @string/ reference. A reference
+      would live in resources.arsc, out of reach of the manifest patcher.
+    * No <provider> may ever appear in the merged manifest. A provider's
+      authority embeds the application id as a prefix, and two games repacked
+      from one template would then collide at install
+      (INSTALL_FAILED_CONFLICTING_PROVIDER). Keeping the dependency list empty
+      is what guarantees this; the CI asserts it.
+
+  screenOrientation is deliberately absent: orientation is applied at runtime
+  from shell-config.json, so the repacker never has to patch a manifest
+  attribute for it.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="NarraLeaf Shell"
+        android:supportsRtl="true"
+        android:theme="@style/ShellTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density|smallestScreenSize"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

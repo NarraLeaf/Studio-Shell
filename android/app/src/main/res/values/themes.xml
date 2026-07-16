@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A bare, fullscreen, black theme. No AppCompat parent: the shell has no
+  library dependencies, so the platform themes are all that is available.
+  The window starts black so the launch does not flash white before the
+  game's own background paints.
+-->
+<resources>
+    <style name="ShellTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+</resources>

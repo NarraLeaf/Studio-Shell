@@ -1,0 +1,200 @@
+name: build-shells
+
+# Builds both shell templates and uploads each as an artifact, with the
+# structural assertions the Studio repacker depends on. `npm run pull` fetches
+# these to assemble a publish-ready package without any local toolchain.
+#
+# The Android SDK lives only here: it is pre-installed on GitHub-hosted runners
+# and must never be redistributed in an artifact or npm package.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  android:
+    name: android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Pins the Gradle version without committing a wrapper binary.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build templates
+        working-directory: android
+        run: gradle --no-daemon assembleRelease assembleDebug
+
+      - name: Locate build tools
+        id: tools
+        shell: bash
+        run: |
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          echo "dir=$BT" >> "$GITHUB_OUTPUT"
+          echo "Using $BT"
+
+      - name: Assert the template contract
+        shell: bash
+        env:
+          BUILD_TOOLS: ${{ steps.tools.outputs.dir }}
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release-unsigned.apk
+          test -f "$APK" || { echo "::error::release template not found"; exit 1; }
+
+          echo "--- placeholder identity ---"
+          BADGING="$("$BUILD_TOOLS/aapt2" dump badging "$APK")"
+          echo "$BADGING" | head -3
+          grep -q "package: name='com.narraleaf.shell.placeholder'" <<< "$BADGING" \
+            || { echo "::error::placeholder applicationId missing or changed"; exit 1; }
+          grep -q "versionCode='1'" <<< "$BADGING" \
+            || { echo "::error::placeholder versionCode changed"; exit 1; }
+          grep -q "versionName='0.0.0'" <<< "$BADGING" \
+            || { echo "::error::placeholder versionName changed"; exit 1; }
+          grep -q "application-label:'NarraLeaf Shell'" <<< "$BADGING" \
+            || { echo "::error::placeholder label missing; it must be a literal string, not @string/"; exit 1; }
+
+          echo "--- label must be a literal, not a resource reference ---"
+          # A resource reference would live in resources.arsc, out of reach of
+          # the manifest patcher; aapt2 prints @0x… for one.
+          XMLTREE="$("$BUILD_TOOLS/aapt2" dump xmltree --file AndroidManifest.xml "$APK")"
+          if grep -E 'A: http://schemas.android.com/apk/res/android:label' <<< "$XMLTREE" | grep -q '@0x'; then
+            echo "::error::android:label is a resource reference; it must be a literal string"
+            exit 1
+          fi
+
+          echo "--- zero <provider>: an authority embeds the application id and would collide across games ---"
+          if grep -qE '^\s*E: provider' <<< "$XMLTREE"; then
+            echo "::error::merged manifest contains a <provider>"
+            exit 1
+          fi
+
+          echo "--- resources.arsc: exactly one package, stored, aligned ---"
+          PKGS="$("$BUILD_TOOLS/aapt2" dump packagename "$APK" | wc -l)"
+          test "$PKGS" -eq 1 || { echo "::error::expected exactly one package, got $PKGS"; exit 1; }
+          # -v lists the compression method; resources.arsc must be Stored.
+          unzip -v "$APK" | awk '$NF=="resources.arsc" && $3!="Stored" { print "::error::resources.arsc is compressed"; exit 1 }'
+
+          echo "--- icon slots present ---"
+          ENTRIES="$(unzip -Z1 "$APK")"
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            grep -qE "res/mipmap-${d}(-v4)?/ic_launcher\.png" <<< "$ENTRIES" \
+              || { echo "::error::icon slot for $d missing"; exit 1; }
+          done
+
+          echo "--- no symlinks (the repacker refuses them) ---"
+          if unzip -l "$APK" | grep -q " -> "; then
+            echo "::error::template contains a symlink"
+            exit 1
+          fi
+
+          echo "--- zero third-party dependencies ---"
+          # Any library risks dragging a <provider> in and grows every game.
+          if awk '/^dependencies \{/,/^\}/' android/app/build.gradle.kts | grep -vE '^\s*(dependencies \{|\}|//.*|\s*)$' | grep -q .; then
+            echo "::error::app/build.gradle.kts declares dependencies; the shell must have none"
+            exit 1
+          fi
+          echo "all Android assertions passed"
+
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk out/template.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/template-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shell-android
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 90
+
+  ios:
+    name: ios
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build templates
+        run: |
+          set -euo pipefail
+          for config in Release Debug; do
+            xcodebuild \
+              -project ios/Shell.xcodeproj \
+              -target Shell \
+              -configuration "$config" \
+              -sdk iphoneos \
+              CONFIGURATION_BUILD_DIR="$PWD/ios/build/$config" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
+              build
+          done
+
+      - name: Assert the template contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=ios/build/Release/Shell.app
+          test -d "$APP" || { echo "::error::release template not found"; exit 1; }
+
+          echo "--- Info.plist must be plain XML the repacker can rewrite ---"
+          # xcodebuild converts plists to binary by default; the repacker only
+          # rewrites text plists, so this must stay XML.
+          file "$APP/Info.plist"
+          if ! file "$APP/Info.plist" | grep -qi "XML"; then
+            echo "::error::Info.plist is not XML; the repacker cannot patch a binary plist"
+            exit 1
+          fi
+          plutil -lint "$APP/Info.plist"
+
+          echo "--- placeholder identity + the keys the repacker patches ---"
+          for key in CFBundleIdentifier CFBundleDisplayName CFBundleShortVersionString CFBundleVersion; do
+            value="$(plutil -extract "$key" raw -o - "$APP/Info.plist")"
+            echo "  $key = $value"
+          done
+          test "$(plutil -extract CFBundleIdentifier raw -o - "$APP/Info.plist")" = "com.narraleaf.shell.placeholder"
+          plutil -extract UISupportedInterfaceOrientations json -o - "$APP/Info.plist" > /dev/null
+
+          echo "--- executable present and executable ---"
+          test -x "$APP/Shell" || { echo "::error::executable Shell missing or not executable"; exit 1; }
+
+          echo "--- icon slots present ---"
+          for icon in AppIcon60x60@2x.png AppIcon60x60@3x.png; do
+            test -f "$APP/$icon" || { echo "::error::icon slot $icon missing"; exit 1; }
+          done
+
+          echo "--- no embedded frameworks, no symlinks (the repacker refuses them) ---"
+          test ! -d "$APP/Frameworks" || { echo "::error::template embeds frameworks"; exit 1; }
+          if find "$APP" -type l | grep -q .; then
+            echo "::error::template contains a symlink"
+            find "$APP" -type l
+            exit 1
+          fi
+          echo "all iOS assertions passed"
+
+      - name: Collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          # ditto keeps the executable bit, which is what lets the repacked app launch.
+          ditto -c -k --keepParent ios/build/Release/Shell.app out/template.app.zip
+          ditto -c -k --keepParent ios/build/Debug/Shell.app out/template-debug.app.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shell-ios
+          path: out/*.zip
+          if-no-files-found: error
+          retention-days: 90

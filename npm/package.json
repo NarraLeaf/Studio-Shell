@@ -1,0 +1,20 @@
+{
+  "name": "@narraleaf/studio-shell",
+  "version": "0.1.0",
+  "description": "Prebuilt, unsigned WebView shell templates that NarraLeaf Studio repacks into Android and iOS builds.",
+  "license": "MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NarraLeaf/Studio-Shell.git"
+  },
+  "homepage": "https://github.com/NarraLeaf/Studio-Shell#readme",
+  "files": [
+    "android/",
+    "ios/",
+    "manifest.json",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

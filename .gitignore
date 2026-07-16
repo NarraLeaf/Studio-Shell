@@ -1,0 +1,15 @@
+# Build output
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+ios/build/
+ios/DerivedData/
+npm/android/
+npm/ios/
+npm/manifest.json
+
+# Tooling
+.DS_Store
+*.xcuserstate
+xcuserdata/

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Shell self-check</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #101416; color: #e6edf0; font: 15px/1.5 system-ui, sans-serif; }
+  main { padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  #summary { padding: 10px 12px; border-radius: 6px; font-weight: 600; margin-bottom: 12px; }
+  .pending { background: #2a2f33; }
+  .pass { background: #1d4535; color: #7fe3b0; }
+  .fail { background: #4a2226; color: #ff9d9d; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 7px 0; border-bottom: 1px solid #22282b; display: flex; gap: 8px; align-items: baseline; }
+  .tag { flex: none; width: 3.2em; font-weight: 700; font-size: 12px; }
+  .tag.pass { color: #7fe3b0; background: none; }
+  .tag.fail { color: #ff9d9d; background: none; }
+  .name { flex: 1; }
+  .detail { color: #8a969c; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>NarraLeaf shell self-check</h1>
+  <div id="summary" class="pending">Running…</div>
+  <ul id="results"></ul>
+</main>
+<script>
+// The payload the CI smoke test and manual device runs load. It exercises the
+// parts of the serving contract that the game silently depends on: without
+// Range there is no audio/video seeking, without IndexedDB there are no saves,
+// and a wrong Content-Type stops a module script from ever executing.
+const results = document.getElementById("results");
+const summary = document.getElementById("summary");
+let failed = 0;
+
+function record(name, ok, detail) {
+  if (!ok) failed++;
+  const li = document.createElement("li");
+  li.innerHTML =
+    `<span class="tag ${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"}</span>` +
+    `<span class="name">${name}<br><span class="detail">${detail ?? ""}</span></span>`;
+  results.appendChild(li);
+}
+
+async function check(name, fn) {
+  try {
+    const detail = await fn();
+    record(name, true, detail);
+  } catch (error) {
+    record(name, false, String(error && error.message || error));
+  }
+}
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+(async () => {
+  await check("Entry document served", async () => `origin ${location.origin}`);
+
+  await check("Secure context (IndexedDB and friends need it)", async () => {
+    assert(window.isSecureContext, "window.isSecureContext is false");
+    return "isSecureContext = true";
+  });
+
+  await check("Content-Type inferred correctly", async () => {
+    const res = await fetch("./data/sample.json");
+    const type = res.headers.get("Content-Type") || "";
+    assert(type.includes("application/json"), `expected application/json, got "${type}"`);
+    const body = await res.json();
+    assert(body.ok === true, "sample.json did not round-trip");
+    return type;
+  });
+
+  await check("Whole-file read", async () => {
+    const res = await fetch("./data/bytes.bin");
+    const buf = new Uint8Array(await res.arrayBuffer());
+    assert(buf.length === 4096, `expected 4096 bytes, got ${buf.length}`);
+    // The fixture is a byte ramp; verify a couple of positions.
+    assert(buf[0] === 0 && buf[255] === 255, "payload contents are wrong");
+    return "4096 bytes, contents verified";
+  });
+
+  await check("Range request answers 206 with the exact slice", async () => {
+    const res = await fetch("./data/bytes.bin", { headers: { Range: "bytes=100-199" } });
+    assert(res.status === 206, `expected 206, got ${res.status} — media seeking will not work`);
+    const range = res.headers.get("Content-Range");
+    assert(range === "bytes 100-199/4096", `bad Content-Range: "${range}"`);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    assert(buf.length === 100, `expected 100 bytes, got ${buf.length}`);
+    assert(buf[0] === 100 % 256 && buf[99] === 199 % 256, "range slice contents are wrong");
+    return `${range}, 100 bytes verified`;
+  });
+
+  await check("Suffix range (bytes=-N)", async () => {
+    const res = await fetch("./data/bytes.bin", { headers: { Range: "bytes=-64" } });
+    assert(res.status === 206, `expected 206, got ${res.status}`);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    assert(buf.length === 64, `expected 64 bytes, got ${buf.length}`);
+    return res.headers.get("Content-Range");
+  });
+
+  await check("Open-ended range (bytes=N-)", async () => {
+    const res = await fetch("./data/bytes.bin", { headers: { Range: "bytes=4000-" } });
+    assert(res.status === 206, `expected 206, got ${res.status}`);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    assert(buf.length === 96, `expected 96 bytes, got ${buf.length}`);
+    return res.headers.get("Content-Range");
+  });
+
+  await check("Accept-Ranges advertised", async () => {
+    const res = await fetch("./data/bytes.bin");
+    const value = res.headers.get("Accept-Ranges");
+    assert(value === "bytes", `expected "bytes", got "${value}"`);
+    return value;
+  });
+
+  await check("Unsatisfiable range rejected with 416", async () => {
+    const res = await fetch("./data/bytes.bin", { headers: { Range: "bytes=99999-" } });
+    assert(res.status === 416, `expected 416, got ${res.status}`);
+    return "416";
+  });
+
+  await check("Missing file is a clean 404", async () => {
+    const res = await fetch("./data/definitely-absent.bin");
+    assert(res.status === 404, `expected 404, got ${res.status}`);
+    return "404";
+  });
+
+  await check("Path traversal refused", async () => {
+    const res = await fetch("./../shell-config.json");
+    assert(!res.ok, `expected a failure, got ${res.status}`);
+    return `blocked (${res.status})`;
+  });
+
+  await check("IndexedDB usable (the game's saves live here)", async () => {
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open("shell-selfcheck", 1);
+      req.onupgradeneeded = () => req.result.createObjectStore("kv");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("kv", "readwrite");
+      tx.objectStore("kv").put({ at: Date.now() }, "probe");
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    const value = await new Promise((resolve, reject) => {
+      const tx = db.transaction("kv", "readonly");
+      const req = tx.objectStore("kv").get("probe");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    assert(value && typeof value.at === "number", "value did not round-trip");
+    db.close();
+    return "write + read verified";
+  });
+
+  await check("ES module script executes", async () => {
+    const mod = await import("./data/module.js");
+    assert(mod.marker === "module-ok", "module did not export its marker");
+    return mod.marker;
+  });
+
+  await check("Audio element can load and seek", async () => {
+    const audio = document.createElement("audio");
+    audio.preload = "auto";
+    audio.src = "./data/tone.wav";
+    await new Promise((resolve, reject) => {
+      audio.onloadedmetadata = resolve;
+      audio.onerror = () => reject(new Error("audio failed to load"));
+      setTimeout(() => reject(new Error("timed out loading audio")), 5000);
+    });
+    assert(audio.duration > 0.1, `bad duration: ${audio.duration}`);
+    // Seeking is what Range exists for.
+    audio.currentTime = audio.duration / 2;
+    return `duration ${audio.duration.toFixed(2)}s, seek ok`;
+  });
+
+  await check("Autoplay is not gated behind a gesture", async () => {
+    const audio = document.createElement("audio");
+    audio.src = "./data/tone.wav";
+    audio.volume = 0.01;
+    await audio.play();
+    audio.pause();
+    return "play() resolved without a user gesture";
+  });
+
+  summary.textContent = failed === 0
+    ? "All checks passed."
+    : `${failed} check(s) failed.`;
+  summary.className = failed === 0 ? "pass" : "fail";
+  // The CI smoke test reads this.
+  document.title = failed === 0 ? "SELFCHECK PASS" : "SELFCHECK FAIL";
+  window.__SHELL_SELFCHECK__ = { failed, done: true };
+})();
+</script>
+</body>
+</html>

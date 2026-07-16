@@ -1,0 +1,11 @@
+{
+  "name": "studio-shell",
+  "private": true,
+  "description": "Build tooling for the NarraLeaf Studio mobile shell templates. The published package lives in npm/.",
+  "license": "MPL-2.0",
+  "scripts": {
+    "pull": "node scripts/pull-prebuilds.js",
+    "manifest": "node scripts/make-manifest.js",
+    "release": "node scripts/pull-prebuilds.js && node scripts/make-manifest.js"
+  }
+}
