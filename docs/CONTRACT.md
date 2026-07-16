@@ -46,7 +46,6 @@ Built by `android/`, output `template.apk` (release) and `template-debug.apk`.
 | `android:label` is a **literal string**, never `@string/…` | A reference lives in `resources.arsc`, out of the manifest patcher's reach |
 | `android:versionCode` is a typed int; `android:versionName` a string | The patcher writes the int in place and the string through the pool |
 | `resources.arsc` declares **exactly one** package | The patcher refuses to guess which to rename |
-| `resources.arsc` is **stored** (uncompressed) and 4-byte aligned | Android 11+ rejects the install otherwise |
 | **Zero `<provider>`** in the merged manifest | An authority embeds the application id as a prefix; two games repacked from one template would collide with `INSTALL_FAILED_CONFLICTING_PROVIDER` |
 | **Zero third-party dependencies** | Any library risks dragging in a `<provider>` (androidx startup/profileinstaller do), and grows a template that ships inside every game |
 | Icons are plain mipmap PNGs, not adaptive-icon XML | The repacker swaps PNG bytes; it cannot compile new resources |
@@ -67,6 +66,14 @@ The placeholder application id is renamed pool-wide by Studio under an exact +
 dotted-prefix rule, so any string derived from it follows. The zero-`<provider>`
 rule stands regardless: it removes the failure mode rather than patching around
 it.
+
+Two rules that are **not** the template's to keep, listed because they are easy
+to mistake for its business: `resources.arsc` must ship **stored and 4-byte
+aligned** in the finished APK (Android 11+ rejects the install otherwise), and
+every other stored entry must be aligned too. Both are the repacker's
+guarantees — it reads the template's table however it was encoded and always
+writes it back stored and aligned — so the template may store or deflate as its
+build tools please.
 
 ## iOS
 

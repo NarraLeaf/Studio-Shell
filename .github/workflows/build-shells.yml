@@ -78,11 +78,17 @@ jobs:
             exit 1
           fi
 
-          echo "--- resources.arsc: exactly one package, stored, aligned ---"
-          PKGS="$("$BUILD_TOOLS/aapt2" dump packagename "$APK" | wc -l)"
-          test "$PKGS" -eq 1 || { echo "::error::expected exactly one package, got $PKGS"; exit 1; }
-          # -v lists the compression method; resources.arsc must be Stored.
-          unzip -v "$APK" | awk '$NF=="resources.arsc" && $3!="Stored" { print "::error::resources.arsc is compressed"; exit 1 }'
+          echo "--- resources.arsc present and declaring exactly one package ---"
+          # Only the package count matters here: the repacker renames the one
+          # package in place and refuses to guess between several. Whether the
+          # template stores or deflates the table is its own business — the
+          # repacker reads either and always writes the result back stored and
+          # 4-byte aligned, which is what Android 11+ actually requires of the
+          # finished APK (and what Studio's own tests assert).
+          unzip -Z1 "$APK" | grep -qx "resources.arsc" \
+            || { echo "::error::resources.arsc missing"; exit 1; }
+          PKGS="$("$BUILD_TOOLS/aapt2" dump resources "$APK" | grep -c '^Package name=' || true)"
+          test "$PKGS" -eq 1 || { echo "::error::expected exactly one resource-table package, got $PKGS"; exit 1; }
 
           echo "--- icon slots present ---"
           ENTRIES="$(unzip -Z1 "$APK")"
