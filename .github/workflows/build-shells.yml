@@ -93,8 +93,12 @@ jobs:
           echo "--- icon slots present ---"
           ENTRIES="$(unzip -Z1 "$APK")"
           for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            grep -qE "res/mipmap-${d}(-v4)?/ic_launcher\.png" <<< "$ENTRIES" \
-              || { echo "::error::icon slot for $d missing"; exit 1; }
+            grep -qE "res/mipmap-${d}(-v[0-9]+)?/ic_launcher\.png" <<< "$ENTRIES" \
+              || {
+                echo "::error::icon slot for $d missing — the APK's res/ entries are:"
+                grep '^res/' <<< "$ENTRIES" | head -20
+                exit 1
+              }
           done
 
           echo "--- no symlinks (the repacker refuses them) ---"
