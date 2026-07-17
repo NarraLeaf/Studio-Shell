@@ -103,9 +103,39 @@ than crashes.
 {
     "schemaVersion": 1,
     "orientation": "landscape", // landscape | portrait | auto
-    "backgroundColor": "#000000" // the pre-boot background, matching the web export
+    "backgroundColor": "#000000", // the pre-boot background, matching the web export
+    "contentKey": "…" // optional; present only when the payload is encoded
 }
 ```
+
+`contentKey` is an opaque token the shell hands to the decoder library. When it
+is present the whole payload is encoded and the shell serves nothing without
+decoding it; when it is absent the payload is plain and served verbatim. It is
+all-or-nothing: a shell asked for the length of a file cannot see that file's
+bytes, so it cannot tell protected files apart one by one.
+
+## The decoder libraries
+
+The shells carry no decoding logic. `scripts/pull-decoder.js` fetches prebuilt
+libraries from the published `@narraleaf/encryption` package into
+`android/app/src/main/jniLibs/` and `ios/Vendor/`; both are build inputs and
+neither is committed. CI pulls them before building, and asserts they reached
+the template — a shell that builds without them fails only on a device, the
+first time it meets an encoded payload.
+
+- **Android**: one `.so` per ABI (`arm64-v8a`, `armeabi-v7a`, `x86_64`),
+  exporting the JNI entry points `NativeContentDecoder` declares. **The class
+  and method names there are an ABI contract with the library**; renaming them
+  breaks the lookup at runtime, on a device, not here.
+- **Android packaging**: `extractNativeLibs="true"` and deflated `.so` entries,
+  both deliberate. Uncompressed libraries are mmap'd straight from the APK and
+  must be page-aligned (16 KB on Android 15+), but the Studio repacker rewrites
+  the archive 4-byte aligned — a page-aligned layout would not survive it, and
+  the failure would surface as an install or load error on a device. Extracting
+  costs a few tens of KB at install and keeps the repack contract whole.
+- **iOS**: a static `NlCrypto.xcframework`. Static, not dynamic: a dynamic
+  framework inside an `.app` brings embedded frameworks and symlinks, and the
+  repack rejects symlinks outright.
 
 ## Serving contract
 

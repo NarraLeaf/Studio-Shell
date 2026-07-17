@@ -53,13 +53,22 @@ android {
     sourceSets {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
+            // Prebuilt decoder libraries, fetched from the published package by
+            // scripts/pull-decoder.js. They are a build input, not source, and
+            // are never committed — see docs/CONTRACT.md.
+            jniLibs.srcDirs("src/main/jniLibs")
         }
     }
 
-    // A single ABI-independent artifact: the shell is pure Java/Kotlin + the
-    // system WebView, so there is nothing arch-specific to split on.
+    // One universal artifact, every ABI in it. Splitting per ABI would multiply
+    // the templates Studio ships and the ones it must choose between, to save
+    // ~25 KB in a package that carries a whole game.
     packaging {
         resources.excludes += setOf("META-INF/*.kotlin_module")
+        // The decoder libraries must stay compressed: the repacker rewrites the
+        // archive with 4-byte alignment, and an uncompressed .so would then need
+        // page alignment it will not get (see extractNativeLibs in the manifest).
+        jniLibs.useLegacyPackaging = true
     }
 }
 

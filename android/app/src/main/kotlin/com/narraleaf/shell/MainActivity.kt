@@ -40,7 +40,7 @@ class MainActivity : Activity() {
 
         webView = WebView(this).apply {
             setBackgroundColor(config.backgroundColor)
-            val server = WwwServer(assets)
+            val server = WwwServer(assets, decoderFor(config))
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(
                     view: WebView,
@@ -125,4 +125,19 @@ class MainActivity : Activity() {
             }
         }
     }
+
+    /**
+     * The decoder this build's payload needs. A key in the config means the
+     * packer encoded the payload, and the library must then be present: falling
+     * back to serving ciphertext would look like a corrupt game rather than a
+     * broken build, so it fails here instead.
+     */
+    private fun decoderFor(config: ShellConfig): ContentDecoder {
+        val key = config.contentKey ?: return IdentityContentDecoder
+        check(NativeContentDecoder.isAvailable) {
+            "this build carries an encoded payload but no decoder library"
+        }
+        return NativeContentDecoder(key)
+    }
+
 }

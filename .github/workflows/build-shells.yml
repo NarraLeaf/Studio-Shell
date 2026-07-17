@@ -30,6 +30,12 @@ jobs:
         with:
           gradle-version: "8.7"
 
+      # The decoder libraries are a build input pulled from the published
+      # package, never committed. Without them the shell would build fine and
+      # then fail on a device the moment it met an encoded payload.
+      - name: Pull the decoder libraries
+        run: node scripts/pull-decoder.js
+
       - name: Build templates
         working-directory: android
         run: gradle --no-daemon assembleRelease assembleDebug
@@ -106,6 +112,21 @@ jobs:
             echo "::error::template contains a symlink"
             exit 1
           fi
+
+          echo "--- decoder libraries, one per ABI ---"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            unzip -l "$APK" | grep -q "lib/$abi/libnlcrypto.so" \
+              || { echo "::error::template is missing the $abi decoder library"; exit 1; }
+          done
+          # Compressed on purpose: the repacker rewrites the archive 4-byte
+          # aligned, and a stored .so would then need page alignment it will not
+          # get. extractNativeLibs=true is what makes that safe.
+          if unzip -v "$APK" | grep "libnlcrypto.so" | grep -q " Stored "; then
+            echo "::error::decoder libraries are stored; they must be deflated (see extractNativeLibs)"
+            exit 1
+          fi
+          "$BUILD_TOOLS/aapt2" dump xmltree --file AndroidManifest.xml "$APK" | grep -q "extractNativeLibs" \
+            || { echo "::error::extractNativeLibs is not set; the repacked APK may fail to load its libraries"; exit 1; }
 
           echo "--- zero third-party dependencies ---"
           # Any library risks dragging a <provider> in and grows every game.

@@ -13,3 +13,8 @@ npm/manifest.json
 .DS_Store
 *.xcuserstate
 xcuserdata/
+
+# Decoder libraries, fetched from the published package by scripts/pull-decoder.js.
+# Build inputs, not source — never committed.
+android/app/src/main/jniLibs/
+ios/Vendor/

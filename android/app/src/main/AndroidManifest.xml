@@ -18,8 +18,17 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- extractNativeLibs="true" is deliberate and load-bearing for the repack.
+         With false, the loader mmaps libraries straight out of the APK, which
+         requires their zip entries to be page-aligned (16 KB on Android 15+).
+         The Studio repacker rewrites the archive with 4-byte alignment — the
+         zipalign contract for everything else — so a page-aligned layout would
+         not survive it, and the failure would be an install or load error on a
+         device rather than anything visible at build time. Extracting instead
+         costs a few tens of KB at install and keeps the repack contract whole. -->
     <application
         android:allowBackup="true"
+        android:extractNativeLibs="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
         android:label="NarraLeaf Shell"

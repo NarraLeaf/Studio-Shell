@@ -15,6 +15,12 @@ data class ShellConfig(
     val schemaVersion: Int,
     val orientation: Orientation,
     val backgroundColor: Int,
+    /**
+     * Opaque token the payload decoder needs, injected only when the packer
+     * encoded this build's payload. Null means the payload is plain and is
+     * served as-is — one shell runs both kinds of game.
+     */
+    val contentKey: String?,
 ) {
 
     enum class Orientation {
@@ -48,6 +54,7 @@ data class ShellConfig(
             schemaVersion = 1,
             orientation = Orientation.LANDSCAPE,
             backgroundColor = DEFAULT_BACKGROUND,
+            contentKey = null,
         )
 
         /**
@@ -66,6 +73,7 @@ data class ShellConfig(
                 orientation = Orientation.parse(json.optString("orientation", null)),
                 backgroundColor = parseColor(json.optString("backgroundColor", null))
                     ?: DEFAULT.backgroundColor,
+                contentKey = json.optString("contentKey", null)?.takeIf { it.isNotEmpty() },
             )
         }
 
