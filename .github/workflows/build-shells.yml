@@ -156,6 +156,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Same as the Android job: the decoder library is a build input pulled
+      # from the published package, never committed. It arrives as a static
+      # NlCrypto.xcframework the Xcode project links into the executable. Without
+      # it the project fails to build (the framework reference is unresolved),
+      # rather than building a shell that meets an encoded payload on a device
+      # with no way to read it.
+      - name: Pull the decoder libraries
+        run: node scripts/pull-decoder.js
+
       - name: Build templates
         run: |
           set -euo pipefail
@@ -206,6 +215,11 @@ jobs:
           done
 
           echo "--- no embedded frameworks, no symlinks (the repacker refuses them) ---"
+          # The decoder is a *static* xcframework, so the linker folds it into the
+          # Shell executable and the app bundle gains no Frameworks/ directory.
+          # This assertion therefore still holds with the decoder linked in — a
+          # dynamic framework (which would embed a bundle and its symlinks) is
+          # what the repacker cannot take, and what this guards against.
           test ! -d "$APP/Frameworks" || { echo "::error::template embeds frameworks"; exit 1; }
           if find "$APP" -type l | grep -q .; then
             echo "::error::template contains a symlink"

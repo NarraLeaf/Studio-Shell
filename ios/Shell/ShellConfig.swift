@@ -33,6 +33,10 @@ struct ShellConfig {
     let schemaVersion: Int
     let orientation: Orientation
     let backgroundColor: UIColor
+    /// Opaque token the payload decoder needs, injected only when the packer
+    /// encoded this build's payload. Nil means the payload is plain and is
+    /// served as-is — one shell runs both kinds of game.
+    let contentKey: String?
 
     static let path = "shell-config.json"
 
@@ -40,7 +44,8 @@ struct ShellConfig {
     static let defaultConfig = ShellConfig(
         schemaVersion: 1,
         orientation: .landscape,
-        backgroundColor: .black
+        backgroundColor: .black,
+        contentKey: nil
     )
 
     /// Read the injected config, falling back to `defaultConfig` when it is
@@ -55,10 +60,12 @@ struct ShellConfig {
         else {
             return defaultConfig
         }
+        let contentKey = (json["contentKey"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         return ShellConfig(
             schemaVersion: json["schemaVersion"] as? Int ?? defaultConfig.schemaVersion,
             orientation: Orientation.parse(json["orientation"] as? String),
-            backgroundColor: parseColor(json["backgroundColor"] as? String) ?? defaultConfig.backgroundColor
+            backgroundColor: parseColor(json["backgroundColor"] as? String) ?? defaultConfig.backgroundColor,
+            contentKey: contentKey
         )
     }
 

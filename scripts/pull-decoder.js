@@ -19,7 +19,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const PACKAGE = '@narraleaf/encryption';
-const DEFAULT_VERSION = '0.3.0';
+const DEFAULT_VERSION = '0.4.0';
 
 const ANDROID_ABIS = ['arm64-v8a', 'armeabi-v7a', 'x86_64'];
 const ANDROID_DEST = path.join(ROOT, 'android', 'app', 'src', 'main', 'jniLibs');

@@ -23,7 +23,7 @@ final class ShellViewController: UIViewController {
 
         let root = Bundle.main.bundleURL.appendingPathComponent(WwwSchemeHandler.wwwRoot)
         configuration.setURLSchemeHandler(
-            WwwSchemeHandler(rootDirectory: root),
+            WwwSchemeHandler(rootDirectory: root, decoder: Self.decoderFor(config)),
             forURLScheme: WwwSchemeHandler.scheme
         )
 
@@ -63,6 +63,15 @@ final class ShellViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = config.backgroundColor
         webView.load(URLRequest(url: WwwSchemeHandler.entryURL))
+    }
+
+    /// The decoder this build's payload needs. A key in the config means the
+    /// packer encoded the payload; the decoder library is statically linked into
+    /// this binary, so it is always present when a key is. Without a key the
+    /// payload is plain and served as-is.
+    private static func decoderFor(_ config: ShellConfig) -> ContentDecoder {
+        guard let key = config.contentKey else { return IdentityContentDecoder() }
+        return NativeContentDecoder(key: key)
     }
 
     // The game paints every pixel, cutout included.

@@ -80,7 +80,16 @@ final class WwwSchemeHandler: NSObject, WKURLSchemeHandler {
         guard let sourceLength = (attributes[.size] as? NSNumber)?.uint64Value else {
             return respondEmpty(task, status: 404, reason: "Not Found")
         }
-        let length = decoder.decodedLength(sourceLength)
+
+        // Open a per-file decoder up front. A protected build that cannot open a
+        // file (missing header, unusable key) throws here and the request fails
+        // loudly, rather than serving bytes the web view cannot use.
+        let file = try decoder.open(fileURL, fileLength: sourceLength)
+        defer { file.close() }
+        // Content begins `contentStart` bytes into the file; the served length
+        // and every range are in content space.
+        let contentStart = file.contentStart
+        let length = sourceLength - contentStart
 
         let contentType = Mime.of(fileURL.lastPathComponent)
         let mimeType = Mime.isTextual(contentType) ? "\(contentType); charset=utf-8" : contentType
@@ -130,7 +139,8 @@ final class WwwSchemeHandler: NSObject, WKURLSchemeHandler {
 
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
-        try handle.seek(toOffset: start)
+        // Read from the file at the header offset; decode in content space.
+        try handle.seek(toOffset: contentStart + start)
 
         // Stream in chunks so a large asset never lands in memory whole.
         let chunkSize = 512 * 1024
@@ -140,7 +150,7 @@ final class WwwSchemeHandler: NSObject, WKURLSchemeHandler {
             if isCancelled(task) { return }
             let want = Int(min(UInt64(chunkSize), remaining))
             guard let raw = try handle.read(upToCount: want), !raw.isEmpty else { break }
-            let chunk = try decoder.decode(raw, at: offset)
+            let chunk = try file.decode(raw, at: offset)
             deliver(task) { task.didReceive(chunk) }
             remaining -= UInt64(raw.count)
             offset += UInt64(raw.count)

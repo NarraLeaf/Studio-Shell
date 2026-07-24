@@ -13,6 +13,8 @@
 		A1000001000000000000004 /* ContentDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000004 /* ContentDecoder.swift */; };
 		A1000001000000000000005 /* ShellConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000005 /* ShellConfig.swift */; };
 		A1000001000000000000006 /* Mime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000006 /* Mime.swift */; };
+		A1000001000000000000007 /* NativeContentDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000008 /* NativeContentDecoder.swift */; };
+		A100000E000000000000001 /* NlCrypto.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A100000D000000000000001 /* NlCrypto.xcframework */; };
 		A1000001000000000000010 /* AppIcon60x60@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000010 /* AppIcon60x60@2x.png */; };
 		A1000001000000000000011 /* AppIcon60x60@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000011 /* AppIcon60x60@3x.png */; };
 		A1000001000000000000012 /* AppIcon76x76~ipad.png in Resources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000012 /* AppIcon76x76~ipad.png */; };
@@ -27,7 +29,9 @@
 		A1000002000000000000004 /* ContentDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentDecoder.swift; sourceTree = "<group>"; };
 		A1000002000000000000005 /* ShellConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellConfig.swift; sourceTree = "<group>"; };
 		A1000002000000000000006 /* Mime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mime.swift; sourceTree = "<group>"; };
+		A1000002000000000000008 /* NativeContentDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeContentDecoder.swift; sourceTree = "<group>"; };
 		A1000002000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A100000D000000000000001 /* NlCrypto.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = NlCrypto.xcframework; path = Vendor/NlCrypto.xcframework; sourceTree = SOURCE_ROOT; };
 		A1000002000000000000010 /* AppIcon60x60@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIcon60x60@2x.png"; sourceTree = "<group>"; };
 		A1000002000000000000011 /* AppIcon60x60@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIcon60x60@3x.png"; sourceTree = "<group>"; };
 		A1000002000000000000012 /* AppIcon76x76~ipad.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIcon76x76~ipad.png"; sourceTree = "<group>"; };
@@ -39,6 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A100000E000000000000001 /* NlCrypto.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -49,8 +54,17 @@
 			isa = PBXGroup;
 			children = (
 				A1000005000000000000002 /* Shell */,
+				A100000F000000000000001 /* Vendor */,
 				A1000005000000000000003 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		A100000F000000000000001 /* Vendor */ = {
+			isa = PBXGroup;
+			children = (
+				A100000D000000000000001 /* NlCrypto.xcframework */,
+			);
+			name = Vendor;
 			sourceTree = "<group>";
 		};
 		A1000005000000000000002 /* Shell */ = {
@@ -60,6 +74,7 @@
 				A1000002000000000000002 /* ShellViewController.swift */,
 				A1000002000000000000003 /* WwwSchemeHandler.swift */,
 				A1000002000000000000004 /* ContentDecoder.swift */,
+				A1000002000000000000008 /* NativeContentDecoder.swift */,
 				A1000002000000000000005 /* ShellConfig.swift */,
 				A1000002000000000000006 /* Mime.swift */,
 				A1000002000000000000007 /* Info.plist */,
@@ -155,6 +170,7 @@
 				A1000001000000000000002 /* ShellViewController.swift in Sources */,
 				A1000001000000000000003 /* WwwSchemeHandler.swift in Sources */,
 				A1000001000000000000004 /* ContentDecoder.swift in Sources */,
+				A1000001000000000000007 /* NativeContentDecoder.swift in Sources */,
 				A1000001000000000000005 /* ShellConfig.swift in Sources */,
 				A1000001000000000000006 /* Mime.swift in Sources */,
 			);
