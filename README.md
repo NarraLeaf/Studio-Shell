@@ -34,6 +34,12 @@ npm/              The published package's contents
 2. Reads `shell-config.json` for the game's orientation and pre-boot colour.
 3. Goes fullscreen and unlocks media playback, so the opening track sounds and
    video stays in the page.
+4. Takes away the inputs that would end a session by accident. Zoom is off, and
+   on Android the Back key and back gesture do **nothing at all** — a game is
+   one document with nowhere to go back to, and the default would have been to
+   finish the app, losing every line since the last save. Nothing is bound in
+   their place: a mobile build that wants a way out draws a button, where its
+   author put it.
 
 Everything else — the game itself — is the payload.
 

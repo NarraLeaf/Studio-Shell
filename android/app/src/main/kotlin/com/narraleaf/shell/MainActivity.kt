@@ -12,6 +12,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 
 /**
  * The whole shell: one Activity hosting one WebView that plays the injected
@@ -72,6 +74,8 @@ class MainActivity : Activity() {
         window.setBackgroundDrawable(null)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        disableBackKey()
+
         if (savedInstanceState == null) {
             webView.loadUrl(WwwServer.ENTRY_URL)
         } else {
@@ -89,6 +93,49 @@ class MainActivity : Activity() {
         if (hasFocus) {
             enterImmersiveMode()
         }
+    }
+
+    /**
+     * The Back key and the back gesture, going nowhere.
+     *
+     * A NarraLeaf game is one document that never navigates, so Back has nothing
+     * to go back to, and the other platforms the same game ships to have no such
+     * input at all. Binding it to something — an in-game menu, "press again to
+     * exit" — would be a behaviour the author never asked for and cannot see
+     * from the editor, on the one platform out of four that has the key. A
+     * mobile build that wants a way out draws a button, where its author put it.
+     *
+     * Doing nothing is not the default: an Activity that ignores Back finishes
+     * itself, dropping the process and with it every line the player has read
+     * since their last save — no warning, and nothing to recover from. The web
+     * shell refuses the same navigation for the same reason (Studio's
+     * `historyGuard`), and it cannot reach this one: the key never gets as far
+     * as the WebView.
+     *
+     * Two paths, because Android has two. The key arrives at `onBackPressed()`
+     * below, unless the ahead-of-time dispatcher of API 33+ is active — which it
+     * is once an app opts into predictive back or targets a release where that
+     * is the default. A callback registered there that does nothing is what
+     * makes the second path go nowhere; where it is inactive it is never
+     * invoked, which costs nothing. Neither path is the one to delete when this
+     * shell's target moves.
+     */
+    private fun disableBackKey() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                OnBackInvokedCallback {
+                    // Deliberately empty. Registered so the system has a
+                    // handler for Back that is not "finish the app".
+                },
+            )
+        }
+    }
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    @SuppressLint("MissingSuperCall")
+    override fun onBackPressed() {
+        // No super call: Activity's is the one that finishes the game.
     }
 
     override fun onDestroy() {
