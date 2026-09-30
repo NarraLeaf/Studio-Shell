@@ -75,6 +75,15 @@ guarantees — it reads the template's table however it was encoded and always
 writes it back stored and aligned — so the template may store or deflate as its
 build tools please.
 
+The payload is the repacker's too: it writes every `assets/www/` entry
+**stored**. The shell learns an entry's length from `AssetManager.openFd`, which
+works only on an uncompressed entry. A deflated one is still served — measured
+once by reading it through, and logged once by path under the logcat tag
+`NarraLeafShell` — but every seek into it inflates it from the start, so it is a
+fallback that keeps a game running, not a second supported layout. A genuinely
+absent entry is a quiet 404; any other failure to serve one is logged under the
+same tag, with its path.
+
 ## iOS
 
 Built by `ios/`, output `template.app.zip` (release) and `template-debug.app.zip`.

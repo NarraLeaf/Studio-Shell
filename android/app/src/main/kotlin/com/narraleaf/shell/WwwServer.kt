@@ -1,11 +1,15 @@
 package com.narraleaf.shell
 
 import android.content.res.AssetManager
+import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import java.io.ByteArrayInputStream
+import java.io.FileNotFoundException
+import java.io.IOException
 import java.io.InputStream
 import java.net.URLDecoder
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Serves the injected `assets/www/` payload to the WebView.
@@ -26,6 +30,9 @@ class WwwServer(
     private val assets: AssetManager,
     private val decoder: ContentDecoder = IdentityContentDecoder,
 ) {
+
+    /** Lengths of the entries the APK stores compressed; see [sourceLength]. */
+    private val compressedLengths = ConcurrentHashMap<String, Long>()
 
     /**
      * Intercept [request] when it targets the payload origin, or return null to
@@ -50,7 +57,16 @@ class WwwServer(
             ?.value
 
         return runCatching { respond(assetPath, rangeHeader) }
-            .getOrElse { notFound() }
+            .getOrElse { error ->
+                // A missing entry is an ordinary 404. Anything else (a decoder
+                // refusing a file, an entry that cannot be read) is answered the
+                // same way but said out loud: a release build has no inspector,
+                // and a game that cannot load its own files just never starts.
+                if (error !is FileNotFoundException) {
+                    Log.w(TAG, "cannot serve $assetPath", error)
+                }
+                notFound()
+            }
     }
 
     /**
@@ -79,10 +95,7 @@ class WwwServer(
     }
 
     private fun respond(assetPath: String, rangeHeader: String?): WebResourceResponse {
-        // openFd gives the real length; assets stored uncompressed in the APK
-        // (which is how the repacker writes the payload) always have one.
-        val sourceLength = assets.openFd(assetPath).use { it.length }
-        val length = decoder.decodedLength(sourceLength)
+        val length = decoder.decodedLength(sourceLength(assetPath))
 
         val contentType = Mime.of(assetPath)
         val encoding = if (Mime.isTextual(contentType)) "utf-8" else null
@@ -107,6 +120,53 @@ class WwwServer(
         headers["Content-Length"] = range.length.toString()
         val stream = SlicedInputStream(open(assetPath, length), range.start, range.length)
         return WebResourceResponse(contentType, encoding, 206, "Partial Content", headers, stream)
+    }
+
+    /**
+     * The length of the entry at [assetPath] as it sits in the APK, before
+     * decoding.
+     *
+     * openFd answers without reading a byte, but only for an entry stored
+     * uncompressed — which is how the repacker writes the payload. For a
+     * deflated entry it throws the same FileNotFoundException a missing entry
+     * does, so the two are told apart by opening the entry as a stream: a
+     * missing one throws again, and intercept() answers 404; a compressed one is
+     * measured by reading it through, since no stream API promises a length.
+     *
+     * That happens once per entry (an installed build's payload never changes)
+     * and is logged once, naming the entry: the game still works, but every
+     * seek into a compressed entry inflates it from the start, and the fix
+     * belongs to whatever packed it.
+     */
+    private fun sourceLength(assetPath: String): Long {
+        compressedLengths[assetPath]?.let { return it }
+        try {
+            return assets.openFd(assetPath).use { it.length }
+        } catch (notStored: IOException) {
+            // Missing or compressed; opening it as a stream says which.
+        }
+        val length = assets.open(assetPath, AssetManager.ACCESS_STREAMING).use { countBytes(it) }
+        if (compressedLengths.putIfAbsent(assetPath, length) == null) {
+            Log.w(
+                TAG,
+                "$assetPath is compressed in the APK, so it has no file descriptor; " +
+                    "serving it by reading it through instead, which makes seeking in it slow. " +
+                    "Payload entries should be stored uncompressed.",
+            )
+        }
+        return length
+    }
+
+    /** Reads [stream] to its end, keeping nothing, and returns its byte count. */
+    private fun countBytes(stream: InputStream): Long {
+        val buffer = ByteArray(64 * 1024)
+        var total = 0L
+        var read = stream.read(buffer)
+        while (read >= 0) {
+            total += read
+            read = stream.read(buffer)
+        }
+        return total
     }
 
     private fun open(assetPath: String, decodedLength: Long): InputStream {
@@ -233,6 +293,9 @@ class WwwServer(
     }
 
     companion object {
+        /** The logcat tag the shell writes under. */
+        private const val TAG = "NarraLeafShell"
+
         const val SCHEME = "https"
 
         /**

@@ -1,5 +1,6 @@
 import Foundation
 import WebKit
+import os
 
 /// Serves the payload bundled beside the executable to the web view.
 ///
@@ -25,6 +26,10 @@ final class WwwSchemeHandler: NSObject, WKURLSchemeHandler {
         URL(string: "\(scheme)://\(host)/")!
     }
 
+    /// Where a failed request says why. A release build has no Web Inspector,
+    /// so without this a game that cannot load its own files just never starts.
+    private static let log = Logger(subsystem: "com.narraleaf.shell", category: "www")
+
     private let rootDirectory: URL
     private let decoder: ContentDecoder
     private let queue = DispatchQueue(label: "com.narraleaf.shell.www", qos: .userInitiated, attributes: .concurrent)
@@ -45,6 +50,8 @@ final class WwwSchemeHandler: NSObject, WKURLSchemeHandler {
             do {
                 try self.respond(to: urlSchemeTask)
             } catch {
+                let path = urlSchemeTask.request.url?.path ?? "?"
+                Self.log.error("cannot serve \(path, privacy: .public): \(String(describing: error), privacy: .public)")
                 self.finish(urlSchemeTask, with: error)
             }
         }
@@ -78,7 +85,10 @@ final class WwwSchemeHandler: NSObject, WKURLSchemeHandler {
 
         let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
         guard let sourceLength = (attributes[.size] as? NSNumber)?.uint64Value else {
-            return respondEmpty(task, status: 404, reason: "Not Found")
+            // resolve() found the file, so a 404 would say it is missing and
+            // send whoever debugs the blank game looking for a file that is
+            // there. Fail the request instead, which logs why.
+            throw CocoaError(.fileReadUnknown, userInfo: [NSFilePathErrorKey: fileURL.path])
         }
 
         // Open a per-file decoder up front. A protected build that cannot open a
